@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💐 Criar Surpresa — Dia das Mães</title>
+  <link rel="stylesheet" href="css/global.css" />
+  <link rel="stylesheet" href="css/index.css" />
+</head>
+<body>
+
+  <!-- Corações de fundo -->
+  <div class="bg-hearts" id="bg-hearts"></div>
+
+  <!-- ═══════════════════════════════════════════
+       HERO — tela principal
+  ═══════════════════════════════════════════ -->
+  <main class="hero">
+    <div class="hero-inner">
+      <span class="hero-icon fade-up">💐</span>
+
+      <h1 class="hero-title fade-up delay-1">
+        Surpreenda<br /><em>sua mãe hoje</em>
+      </h1>
+
+      <p class="hero-sub fade-up delay-2">
+        Crie uma surpresa com vídeo e mensagem personalizada.<br />
+        Compartilhe o link ou QR Code. Ela nunca vai esquecer. 🌸
+      </p>
+
+      <div class="hero-actions fade-up delay-3">
+        <button class="btn btn-rose" id="btn-criar" onclick="abrirModal()">
+          <span>Abrir minha surpresa</span>
+          <span>❤️</span>
+        </button>
+      </div>
+
+      <!-- Passos -->
+      <div class="steps fade-up delay-4">
+        <div class="step"><span class="step-n">1</span><span>Grave ou escolha um vídeo</span></div>
+        <div class="step-div">→</div>
+        <div class="step"><span class="step-n">2</span><span>Escreva sua mensagem</span></div>
+        <div class="step-div">→</div>
+        <div class="step"><span class="step-n">3</span><span>Envie o link para a mamãe</span></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ═══════════════════════════════════════════
+       MODAL — criação de surpresa
+  ═══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Criar surpresa">
+
+      <button class="modal-close" onclick="fecharModal()" aria-label="Fechar">✕</button>
+
+      <!-- Etapa 1 — Upload -->
+      <div id="step-upload" class="modal-step active">
+        <div class="modal-header">
+          <span class="modal-icon">🎬</span>
+          <h2 class="modal-title">Crie a surpresa</h2>
+          <p class="modal-sub">Envie um vídeo e escreva algo especial</p>
+        </div>
+
+        <form id="form-surpresa" novalidate>
+          <!-- Nomes -->
+          <div class="form-row">
+            <div class="field">
+              <label>Seu nome (filho/a)</label>
+              <input type="text" id="nome-filho" placeholder="Ex: Ana" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label>Nome da mamãe</label>
+              <input type="text" id="nome-mae" placeholder="Ex: Maria" autocomplete="off" />
+            </div>
+          </div>
+
+          <!-- Mensagem -->
+          <div class="field">
+            <label>Mensagem do coração ❤️</label>
+            <textarea
+              id="mensagem"
+              rows="5"
+              placeholder="Escreva algo que venha do coração…"
+              maxlength="1000"
+            ></textarea>
+            <span class="char-count"><span id="char-n">0</span>/1000</span>
+          </div>
+
+          <!-- Upload de vídeo -->
+          <div class="upload-area" id="upload-area">
+            <input
+              type="file"
+              id="video-input"
+              accept="video/*"
+              style="display:none"
+              onchange="onVideoSelecionado(this)"
+            />
+            <div class="upload-placeholder" id="upload-placeholder" onclick="document.getElementById('video-input').click()">
+              <span class="upload-icon">🎥</span>
+              <p class="upload-label">Clique para escolher um vídeo</p>
+              <p class="upload-hint">MP4, MOV, WebM — até 200MB</p>
+            </div>
+
+            <!-- Preview do vídeo -->
+            <div class="video-preview-wrap" id="video-preview-wrap" style="display:none">
+              <video id="video-preview" class="video-preview" controls playsinline></video>
+              <button type="button" class="btn-remove-video" onclick="removerVideo()" title="Remover vídeo">✕ Remover</button>
+            </div>
+          </div>
+
+          <!-- Botão de envio -->
+          <button type="button" class="btn btn-rose btn-full" id="btn-enviar" onclick="enviarSurpresa()">
+            <span id="btn-enviar-txt">Criar surpresa ✨</span>
+            <div class="spinner" id="spinner"></div>
+          </button>
+        </form>
+      </div>
+
+      <!-- Etapa 2 — Resultado -->
+      <div id="step-resultado" class="modal-step" style="display:none">
+        <div class="resultado-success">
+          <div class="resultado-icon">🎉</div>
+          <h2 class="resultado-title">Surpresa criada!</h2>
+          <p class="resultado-sub">Compartilhe o link abaixo com a mamãe 💐</p>
+        </div>
+
+        <!-- Link -->
+        <div class="link-box">
+          <span id="link-texto" class="link-url"></span>
+          <button class="btn-copy" onclick="copiarLink()" title="Copiar link">📋</button>
+        </div>
+
+        <!-- QR Code -->
+        <div class="qr-section">
+          <button class="btn btn-gold btn-full" id="btn-qr" onclick="gerarQR()">
+            📱 Gerar QR Code
+          </button>
+          <div id="qr-wrap" class="qr-wrap" style="display:none">
+            <div id="qr-canvas"></div>
+            <p class="qr-hint">Mostre esse QR Code para a mamãe escanear 🌸</p>
+            <button class="btn btn-outline btn-full" onclick="exportarQR()">
+              ⬇️ Baixar QR Code (PNG)
+            </button>
+          </div>
+        </div>
+
+        <!-- Ações finais -->
+        <div class="resultado-actions">
+          <button class="btn btn-outline btn-full" onclick="verSurpresa()">
+            👀 Ver como a mamãe vai ver
+          </button>
+          <button class="btn btn-outline btn-full" onclick="novaSurpresa()">
+            ➕ Criar outra surpresa
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- QR Code lib (versão confiável via CDN alternativo) -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="js/index.js"></script>
+</body>
+</html>
