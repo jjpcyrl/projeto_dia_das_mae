@@ -1,33 +1,17 @@
-/**
- * Controller: surpresaController
- * ─────────────────────────────────────
- * Responsável por criar e buscar surpresas.
- * Armazena os dados em /data/surpresas.json
- */
-
 const path = require("path");
-const fs   = require("fs");
 const { v4: uuidv4 } = require("uuid");
+const cloudinary = require("cloudinary").v2;
 
-const DATA_FILE = path.join(__dirname, "../data/surpresas.json");
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-/* ── Helpers de persistência ── */
+// Armazenamento em memória (temporário por sessão)
+const surpresas = {};
 
-function lerDados() {
-  if (!fs.existsSync(DATA_FILE)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
-  } catch {
-    return {};
-  }
-}
-
-function salvarDados(dados) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(dados, null, 2), "utf-8");
-}
-
-/* ── CRIAR surpresa ── */
-exports.criar = (req, res) => {
+exports.criar = async (req, res) => {
   try {
     const { mensagem, nomeFilho, nomeMae } = req.body;
 
@@ -39,22 +23,26 @@ exports.criar = (req, res) => {
       return res.status(400).json({ erro: "É necessário enviar um vídeo." });
     }
 
-    const id = uuidv4().slice(0, 10); // ID curto e amigável
-    const videoUrl = `/uploads/${req.file.filename}`;
+    // Upload para Cloudinary usando buffer
+    const resultado = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: "video", folder: "dia-das-maes" },
+        (error, result) => error ? reject(error) : resolve(result)
+      );
+      stream.end(req.file.buffer);
+    });
 
+    const id = uuidv4().slice(0, 10);
     const surpresa = {
       id,
       nomeFilho: nomeFilho || "Alguém especial",
       nomeMae:   nomeMae   || "Mãezinha",
       mensagem:  mensagem.trim(),
-      videoUrl,
+      videoUrl:  resultado.secure_url,
       criadoEm: new Date().toISOString(),
     };
 
-    // Persiste no JSON
-    const dados = lerDados();
-    dados[id] = surpresa;
-    salvarDados(dados);
+    surpresas[id] = surpresa;
 
     res.status(201).json({
       sucesso: true,
@@ -68,17 +56,13 @@ exports.criar = (req, res) => {
   }
 };
 
-/* ── BUSCAR surpresa por ID ── */
 exports.buscar = (req, res) => {
   try {
     const { id } = req.params;
-    const dados  = lerDados();
-
-    if (!dados[id]) {
+    if (!surpresas[id]) {
       return res.status(404).json({ erro: "Surpresa não encontrada." });
     }
-
-    res.json({ sucesso: true, surpresa: dados[id] });
+    res.json({ sucesso: true, surpresa: surpresas[id] });
   } catch (err) {
     console.error("[BUSCAR]", err);
     res.status(500).json({ erro: "Erro interno ao buscar surpresa." });
