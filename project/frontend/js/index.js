@@ -95,27 +95,20 @@ async function enviarSurpresa() {
   setLoading(true);
 
   try {
-    // 1. Pega assinatura do backend
-    const sigResp = await fetch(`${API}/api/surpresa/assinar`);
-    const sig = await sigResp.json();
-
-    // 2. Envia vídeo direto para o Cloudinary
+    // 1. Envia vídeo direto para o Cloudinary (unsigned)
     const formData = new FormData();
     formData.append("file", _videoSelecionado);
-    formData.append("api_key", sig.api_key);
-    formData.append("timestamp", sig.timestamp);
-    formData.append("signature", sig.signature);
-    formData.append("folder", sig.folder);
+    formData.append("upload_preset", "dia-das-maes");
 
     const cloudResp = await fetch(
-      `https://api.cloudinary.com/v1_1/${sig.cloud_name}/video/upload`,
+      `https://api.cloudinary.com/v1_1/djxwgp35p/video/upload`,
       { method: "POST", body: formData }
     );
     const cloudData = await cloudResp.json();
 
     if (!cloudData.secure_url) throw new Error("Erro no upload do vídeo.");
 
-    // 3. Salva surpresa no backend com a URL do vídeo
+    // 2. Salva surpresa no backend com a URL do vídeo
     const resp = await fetch(`${API}/api/surpresa`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
