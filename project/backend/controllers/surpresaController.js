@@ -11,16 +11,16 @@ exports.criar = async (req, res) => {
     const { mensagem, nomeFilho, nomeMae, videoUrl } = req.body;
 
     if (!mensagem || mensagem.trim() === "")
-      return res.status(400).json({ erro: "A mensagem não pode estar vazia." });
+      return res.status(400).json({ erro: "A mensagem nao pode estar vazia." });
     if (!videoUrl)
-      return res.status(400).json({ erro: "É necessário enviar um vídeo." });
+      return res.status(400).json({ erro: "E necessario enviar um video." });
 
     const id = uuidv4().slice(0, 10);
 
     const { error } = await supabase.from("surpresas").insert({
       id,
-      nome_filho: nomeFilho || "Alguém especial",
-      nome_mae:   nomeMae   || "Mãezinha",
+      nome_filho: nomeFilho || "Alguem especial",
+      nome_mae:   nomeMae   || "Maezinha",
       mensagem:   mensagem.trim(),
       video_url:  videoUrl,
     });
@@ -49,7 +49,7 @@ exports.buscar = async (req, res) => {
       .single();
 
     if (error || !data)
-      return res.status(404).json({ erro: "Surpresa não encontrada." });
+      return res.status(404).json({ erro: "Surpresa nao encontrada." });
 
     res.json({ sucesso: true, surpresa: {
       id: data.id,
