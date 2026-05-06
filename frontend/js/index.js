@@ -1,34 +1,18 @@
-/**
- * 💐 index.js — Lógica da página de criação de surpresa
- * ────────────────────────────────────────────────────
- * Fluxo: Modal → Upload/Mensagem → POST /api/surpresa
- *        → Exibe link + QR Code
- */
-
-// Se o front estiver sendo aberto pelo Live Server (porta diferente de 3000),
-// aponta para o backend Node. Caso contrário, usa a mesma origem.
 const API = (location.port && location.port !== "3000")
   ? "http://localhost:3000"
   : "";
 
-/* ── Estado global ── */
 let _linkGerado   = "";
 let _idGerado     = "";
 let _qrInstance   = null;
 let _videoSelecionado = null;
 
-/* ══════════════════════════════════════════════
-   🌸 INIT
-══════════════════════════════════════════════ */
 window.addEventListener("DOMContentLoaded", () => {
   iniciarCoracoes();
   monitorarContador();
   configurarDragDrop();
 });
 
-/* ══════════════════════════════════════════════
-   🧭 MODAL
-══════════════════════════════════════════════ */
 function abrirModal() {
   document.getElementById("modal-overlay").classList.add("open");
   document.body.style.overflow = "hidden";
@@ -39,25 +23,19 @@ function fecharModal() {
   document.body.style.overflow = "";
 }
 
-// Fecha ao clicar fora do modal
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("modal-overlay").addEventListener("click", e => {
     if (e.target.id === "modal-overlay") fecharModal();
   });
 });
 
-/* ══════════════════════════════════════════════
-   📹 SELEÇÃO DE VÍDEO
-══════════════════════════════════════════════ */
 function onVideoSelecionado(input) {
   const file = input.files[0];
   if (!file) return;
   _videoSelecionado = file;
-
   const url = URL.createObjectURL(file);
   const preview = document.getElementById("video-preview");
   preview.src = url;
-
   document.getElementById("upload-placeholder").style.display = "none";
   document.getElementById("video-preview-wrap").style.display = "block";
 }
@@ -70,22 +48,18 @@ function removerVideo() {
   document.getElementById("video-preview-wrap").style.display = "none";
 }
 
-/* Drag & Drop */
 function configurarDragDrop() {
   const area = document.getElementById("upload-area");
   if (!area) return;
-
   area.addEventListener("dragover", e => {
     e.preventDefault();
     area.style.borderColor = "var(--rose-deep)";
     area.style.background  = "#fff8f9";
   });
-
   area.addEventListener("dragleave", () => {
     area.style.borderColor = "";
     area.style.background  = "";
   });
-
   area.addEventListener("drop", e => {
     e.preventDefault();
     area.style.borderColor = "";
@@ -95,9 +69,7 @@ function configurarDragDrop() {
       mostrarToast("Apenas arquivos de vídeo são aceitos.", "error");
       return;
     }
-    // Simula seleção manual
     const input = document.getElementById("video-input");
-    // FileList não é diretamente mutável; usamos DataTransfer
     const dt = new DataTransfer();
     dt.items.add(file);
     input.files = dt.files;
@@ -105,15 +77,11 @@ function configurarDragDrop() {
   });
 }
 
-/* ══════════════════════════════════════════════
-   📬 ENVIAR SURPRESA
-══════════════════════════════════════════════ */
 async function enviarSurpresa() {
   const nomeFilho = document.getElementById("nome-filho").value.trim();
   const nomeMae   = document.getElementById("nome-mae").value.trim();
   const mensagem  = document.getElementById("mensagem").value.trim();
 
-  /* Validações */
   if (!mensagem) {
     mostrarToast("Escreva uma mensagem antes de continuar 🌸", "error");
     document.getElementById("mensagem").focus();
@@ -124,31 +92,39 @@ async function enviarSurpresa() {
     return;
   }
 
-  /* Loading */
   setLoading(true);
 
   try {
+    // 1. Envia vídeo direto para o Cloudinary (unsigned)
     const formData = new FormData();
-    formData.append("video",      _videoSelecionado);
-    formData.append("mensagem",   mensagem);
-    formData.append("nomeFilho",  nomeFilho || "Alguém especial");
-    formData.append("nomeMae",    nomeMae   || "Mamãe");
+    formData.append("file", _videoSelecionado);
+    formData.append("upload_preset", "dia-das-maes");
 
+    const cloudResp = await fetch(
+      `https://api.cloudinary.com/v1_1/djxwgp35p/video/upload`,
+      { method: "POST", body: formData }
+    );
+    const cloudData = await cloudResp.json();
+
+    if (!cloudData.secure_url) throw new Error("Erro no upload do vídeo.");
+
+    // 2. Salva surpresa no backend com a URL do vídeo
     const resp = await fetch(`${API}/api/surpresa`, {
       method: "POST",
-      body:   formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mensagem,
+        nomeFilho: nomeFilho || "Alguém especial",
+        nomeMae:   nomeMae   || "Mamãe",
+        videoUrl:  cloudData.secure_url,
+      }),
     });
 
     const data = await resp.json();
+    if (!resp.ok) throw new Error(data.erro || "Erro ao criar surpresa.");
 
-    if (!resp.ok) {
-      throw new Error(data.erro || "Erro ao criar surpresa.");
-    }
-
-    /* Sucesso */
     _linkGerado = data.link;
     _idGerado   = data.id;
-
     mostrarResultado();
 
   } catch (err) {
@@ -163,46 +139,30 @@ function setLoading(ativo) {
   const btn     = document.getElementById("btn-enviar");
   const txt     = document.getElementById("btn-enviar-txt");
   const spinner = document.getElementById("spinner");
-  btn.disabled        = ativo;
-  txt.style.display   = ativo ? "none"  : "inline";
+  btn.disabled          = ativo;
+  txt.style.display     = ativo ? "none"  : "inline";
   spinner.style.display = ativo ? "block" : "none";
 }
 
-/* ══════════════════════════════════════════════
-   🎉 TELA DE RESULTADO
-══════════════════════════════════════════════ */
 function mostrarResultado() {
   document.getElementById("step-upload").style.display    = "none";
   document.getElementById("step-resultado").style.display = "block";
-
   document.getElementById("link-texto").textContent = _linkGerado;
-  _qrInstance = null; // reseta QR para poder gerar novamente
+  _qrInstance = null;
 }
 
-/* ══════════════════════════════════════════════
-   📋 COPIAR LINK
-══════════════════════════════════════════════ */
 function copiarLink() {
   navigator.clipboard.writeText(_linkGerado).then(() => {
     mostrarToast("Link copiado! 📋", "success");
   });
 }
 
-/* ══════════════════════════════════════════════
-   📱 GERAR QR CODE
-══════════════════════════════════════════════ */
 function gerarQR() {
   const wrap = document.getElementById("qr-wrap");
   const container = document.getElementById("qr-canvas");
-
   wrap.style.display = "flex";
-
-  if (_qrInstance) return; // já gerado
-
-  // Limpa conteúdo anterior
+  if (_qrInstance) return;
   container.innerHTML = "";
-
-  // qrcodejs cria uma <img> dentro do div
   _qrInstance = new QRCode(container, {
     text:         _linkGerado,
     width:        220,
@@ -211,75 +171,52 @@ function gerarQR() {
     colorLight:   "#ffffff",
     correctLevel: QRCode.CorrectLevel.H,
   });
-
   mostrarToast("QR Code gerado! 📱", "success");
 }
 
-/* ══════════════════════════════════════════════
-   ⬇️ EXPORTAR QR CODE COMO PNG
-══════════════════════════════════════════════ */
 function exportarQR() {
   if (!_qrInstance) {
     mostrarToast("Gere o QR Code primeiro 📱", "error");
     return;
   }
-
-  // qrcodejs gera uma <img> e um <canvas> dentro do container
   const container = document.getElementById("qr-canvas");
   const canvas = container.querySelector("canvas");
   const img    = container.querySelector("img");
-
   if (canvas) {
-    // Prefere o canvas (mais fiel)
     const link = document.createElement("a");
     link.download = "surpresa-qrcode.png";
     link.href = canvas.toDataURL("image/png");
     link.click();
     mostrarToast("QR Code baixado! 🎉", "success");
-
   } else if (img) {
-    // Fallback: usa a <img> gerada
     const link = document.createElement("a");
     link.download = "surpresa-qrcode.png";
     link.href = img.src;
     link.click();
     mostrarToast("QR Code baixado! 🎉", "success");
-
   } else {
     mostrarToast("Erro ao exportar. Tente novamente.", "error");
   }
 }
 
-/* ══════════════════════════════════════════════
-   👀 VER SURPRESA
-══════════════════════════════════════════════ */
 function verSurpresa() {
   window.open(_linkGerado, "_blank");
 }
 
-/* ══════════════════════════════════════════════
-   ➕ NOVA SURPRESA
-══════════════════════════════════════════════ */
 function novaSurpresa() {
-  // Reseta formulário
   document.getElementById("nome-filho").value = "";
   document.getElementById("nome-mae").value   = "";
   document.getElementById("mensagem").value   = "";
   document.getElementById("char-n").textContent = "0";
   removerVideo();
-
   _linkGerado = "";
   _idGerado   = "";
   _qrInstance = null;
-
-  document.getElementById("qr-wrap").style.display    = "none";
+  document.getElementById("qr-wrap").style.display        = "none";
   document.getElementById("step-resultado").style.display = "none";
   document.getElementById("step-upload").style.display    = "block";
 }
 
-/* ══════════════════════════════════════════════
-   🔤 CONTADOR DE CARACTERES
-══════════════════════════════════════════════ */
 function monitorarContador() {
   const ta = document.getElementById("mensagem");
   if (!ta) return;
@@ -288,9 +225,6 @@ function monitorarContador() {
   });
 }
 
-/* ══════════════════════════════════════════════
-   🍞 TOAST
-══════════════════════════════════════════════ */
 function mostrarToast(msg, tipo = "") {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -299,13 +233,9 @@ function mostrarToast(msg, tipo = "") {
   setTimeout(() => t.classList.remove("show"), 3200);
 }
 
-/* ══════════════════════════════════════════════
-   ❤️ CORAÇÕES FLUTUANTES
-══════════════════════════════════════════════ */
 function iniciarCoracoes() {
   const container = document.getElementById("bg-hearts");
   const emojis    = ["❤️", "🩷", "💕", "🌸", "💫", "💖", "🌺"];
-
   function add() {
     const el = document.createElement("span");
     el.className   = "bh";
@@ -317,7 +247,6 @@ function iniciarCoracoes() {
     container.appendChild(el);
     setTimeout(() => el.remove(), 14000);
   }
-
   for (let i = 0; i < 4; i++) setTimeout(add, i * 900);
   setInterval(add, 2400);
 }
