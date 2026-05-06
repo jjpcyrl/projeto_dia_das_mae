@@ -1,36 +1,12 @@
 const { v4: uuidv4 } = require("uuid");
-const cloudinary = require("cloudinary").v2;
+const { createClient } = require("@supabase/supabase-js");
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-const surpresas = {};
-
-// Gera assinatura para upload direto do frontend
-exports.assinar = (req, res) => {
-  try {
-    const timestamp = Math.round(Date.now() / 1000);
-    const folder = "dia-das-maes";
-    const signature = cloudinary.utils.api_sign_request(
-      { timestamp, folder },
-      process.env.CLOUDINARY_API_SECRET
-    );
-    res.json({
-      timestamp,
-      signature,
-      folder,
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-    });
-  } catch (err) {
-    res.status(500).json({ erro: "Erro ao gerar assinatura." });
-  }
-};
-
-exports.criar = (req, res) => {
+exports.criar = async (req, res) => {
   try {
     const { mensagem, nomeFilho, nomeMae, videoUrl } = req.body;
 
@@ -40,35 +16,51 @@ exports.criar = (req, res) => {
       return res.status(400).json({ erro: "É necessário enviar um vídeo." });
 
     const id = uuidv4().slice(0, 10);
-    const surpresa = {
-      id,
-      nomeFilho: nomeFilho || "Alguém especial",
-      nomeMae:   nomeMae   || "Mãezinha",
-      mensagem:  mensagem.trim(),
-      videoUrl,
-      criadoEm: new Date().toISOString(),
-    };
 
-    surpresas[id] = surpresa;
+    const { error } = await supabase.from("surpresas").insert({
+      id,
+      nome_filho: nomeFilho || "Alguém especial",
+      nome_mae:   nomeMae   || "Mãezinha",
+      mensagem:   mensagem.trim(),
+      video_url:  videoUrl,
+    });
+
+    if (error) throw error;
 
     res.status(201).json({
       sucesso: true,
       id,
       link: `${req.protocol}://${req.get("host")}/surpresa/${id}`,
-      surpresa,
     });
   } catch (err) {
+    console.error("[CRIAR]", err);
     res.status(500).json({ erro: "Erro interno ao criar surpresa." });
   }
 };
 
-exports.buscar = (req, res) => {
+exports.buscar = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!surpresas[id])
+
+    const { data, error } = await supabase
+      .from("surpresas")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !data)
       return res.status(404).json({ erro: "Surpresa não encontrada." });
-    res.json({ sucesso: true, surpresa: surpresas[id] });
+
+    res.json({ sucesso: true, surpresa: {
+      id: data.id,
+      nomeFilho: data.nome_filho,
+      nomeMae:   data.nome_mae,
+      mensagem:  data.mensagem,
+      videoUrl:  data.video_url,
+      criadoEm: data.criado_em,
+    }});
   } catch (err) {
+    console.error("[BUSCAR]", err);
     res.status(500).json({ erro: "Erro interno ao buscar surpresa." });
   }
 };
